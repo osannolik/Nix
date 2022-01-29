@@ -319,112 +319,6 @@ Wire Wire Line
 Wire Wire Line
 	4600 2950 4950 2950
 $Comp
-L Switch:SW_SPST SW?
-U 1 1 61B6120F
-P 2900 1650
-AR Path="/61B5D883/61B6120F" Ref="SW?"  Part="1" 
-AR Path="/61B6120F" Ref="SW3"  Part="1" 
-F 0 "SW3" H 2900 1935 50  0000 C CNN
-F 1 "SW_SPDT" H 2900 1844 50  0000 C CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical" H 2900 1650 50  0001 C CNN
-F 3 "~" H 2900 1650 50  0001 C CNN
-	1    2900 1650
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	2400 1650 2700 1650
-Wire Wire Line
-	2100 2300 2700 2300
-Connection ~ 2700 2300
-$Comp
-L Switch:SW_Push SW1
-U 1 1 61B6294D
-P 2100 2550
-F 0 "SW1" V 2146 2502 50  0000 R CNN
-F 1 "SW_Push" V 2055 2502 50  0000 R CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical" H 2100 2750 50  0001 C CNN
-F 3 "~" H 2100 2750 50  0001 C CNN
-	1    2100 2550
-	0    -1   -1   0   
-$EndComp
-$Comp
-L Switch:SW_Push SW2
-U 1 1 61B63854
-P 2700 2550
-F 0 "SW2" V 2746 2502 50  0000 R CNN
-F 1 "SW_Push" V 2655 2502 50  0000 R CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical" H 2700 2750 50  0001 C CNN
-F 3 "~" H 2700 2750 50  0001 C CNN
-	1    2700 2550
-	0    -1   -1   0   
-$EndComp
-$Comp
-L Switch:SW_Push SW4
-U 1 1 61B63CC1
-P 3300 2550
-F 0 "SW4" V 3346 2502 50  0000 R CNN
-F 1 "SW_Push" V 3255 2502 50  0000 R CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical" H 3300 2750 50  0001 C CNN
-F 3 "~" H 3300 2750 50  0001 C CNN
-	1    3300 2550
-	0    -1   -1   0   
-$EndComp
-$Comp
-L Connector_Generic:Conn_01x05 J2
-U 1 1 61B72B61
-P 4550 1850
-F 0 "J2" H 4630 1892 50  0000 L CNN
-F 1 "Conn_01x05" H 4630 1801 50  0000 L CNN
-F 2 "Connector_Harwin:Harwin_M20-89005xx_1x05_P2.54mm_Horizontal" H 4550 1850 50  0001 C CNN
-F 3 "~" H 4550 1850 50  0001 C CNN
-	1    4550 1850
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	4350 1650 3100 1650
-Wire Wire Line
-	3300 1750 4350 1750
-Wire Wire Line
-	2100 2350 2100 2300
-Wire Wire Line
-	2700 2350 2700 2300
-Wire Wire Line
-	2700 2300 3300 2300
-Wire Wire Line
-	3300 2350 3300 2300
-Wire Wire Line
-	3300 2750 3700 2750
-Wire Wire Line
-	3700 2750 3700 1850
-Wire Wire Line
-	3700 1850 4350 1850
-Wire Wire Line
-	4350 1950 3800 1950
-Wire Wire Line
-	3800 1950 3800 2950
-Wire Wire Line
-	3800 2950 2700 2950
-Wire Wire Line
-	2700 2950 2700 2750
-Wire Wire Line
-	2100 2750 2100 3150
-Wire Wire Line
-	2100 3150 3900 3150
-Wire Wire Line
-	4350 2050 3900 2050
-Wire Wire Line
-	3900 2050 3900 3150
-Text Label 3950 1750 0    50   ~ 0
-BACK_GND
-Text Label 3950 1650 0    50   ~ 0
-BACK_VDC
-Text Label 3950 2050 0    50   ~ 0
-BTN_SET
-Text Label 3950 1850 0    50   ~ 0
-BTN_UP
-Text Label 3950 1950 0    50   ~ 0
-BTN_DOWN
-$Comp
 L Connector_Generic:Conn_01x05 J3
 U 1 1 61B8EEB2
 P 5200 1850
@@ -492,16 +386,6 @@ Wire Wire Line
 	8650 1950 8050 1950
 Wire Wire Line
 	8050 2050 8650 2050
-Wire Notes Line
-	4650 1650 5100 1650
-Wire Notes Line
-	4650 1850 5100 1850
-Wire Notes Line
-	4650 1950 5100 1950
-Wire Notes Line
-	4650 2050 5100 2050
-Wire Notes Line
-	4650 1750 5100 1750
 $Comp
 L Device:LED D?
 U 1 1 61DF217C
@@ -691,25 +575,6 @@ Wire Wire Line
 	4200 2450 4200 3150
 Wire Wire Line
 	4200 3150 4950 3150
-Wire Wire Line
-	3300 1850 3300 1750
-Wire Wire Line
-	2400 1850 3300 1850
-Wire Wire Line
-	3300 2300 3300 1850
-Connection ~ 3300 2300
-Connection ~ 3300 1850
-$Comp
-L Connector:Barrel_Jack J1
-U 1 1 61D85BB8
-P 2100 1750
-F 0 "J1" H 2157 2075 50  0000 C CNN
-F 1 "Barrel_Jack" H 2157 1984 50  0000 C CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical" H 2150 1710 50  0001 C CNN
-F 3 "~" H 2150 1710 50  0001 C CNN
-	1    2100 1750
-	1    0    0    -1  
-$EndComp
 $Comp
 L Connector_Generic:Conn_01x06 J6
 U 1 1 61DCF202
@@ -765,4 +630,14 @@ F 3 "" H 5550 3150 50  0001 C CNN
 	1    5550 3150
 	0    1    1    0   
 $EndComp
+Text Notes 4700 1650 0    50   ~ 0
+BACK_VDC
+Text Notes 4700 1750 0    50   ~ 0
+BACK_GND
+Text Notes 4700 1850 0    50   ~ 0
+BTN_UP
+Text Notes 4700 1950 0    50   ~ 0
+BTN_DOWN
+Text Notes 4700 2050 0    50   ~ 0
+BTN_SET
 $EndSCHEMATC
