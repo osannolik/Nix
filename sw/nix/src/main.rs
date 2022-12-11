@@ -203,6 +203,7 @@ fn main() -> ! {
                             } else {
                                 time.minutes = 0;
                             }
+                            time.seconds = 0;
                             rtc.write_time(&time, &mut spi);
                             set_timeout.counter = 0;
                         } else if dec_button.is_pressed(0) {
@@ -211,6 +212,7 @@ fn main() -> ! {
                             } else {
                                 time.minutes = 59;
                             }
+                            time.seconds = 0;
                             rtc.write_time(&time, &mut spi);
                             set_timeout.counter = 0;
                         }
@@ -222,6 +224,7 @@ fn main() -> ! {
                             } else {
                                 time.hours = 0;
                             }
+                            time.seconds = 0;
                             rtc.write_time(&time, &mut spi);
                             set_timeout.counter = 0;
                         } else if dec_button.is_pressed(0) {
@@ -230,6 +233,7 @@ fn main() -> ! {
                             } else {
                                 time.hours = 23;
                             }
+                            time.seconds = 0;
                             rtc.write_time(&time, &mut spi);
                             set_timeout.counter = 0;
                         }
