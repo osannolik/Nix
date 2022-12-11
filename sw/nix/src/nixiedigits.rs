@@ -2,8 +2,10 @@ use core::fmt::Debug;
 use embedded_hal::blocking::spi::Write;
 use embedded_hal::digital::v2::OutputPin;
 
+type Digits<const N: usize> = [Option<u8>; N];
+
 pub trait NixiePresentation<const N: usize> {
-    fn to_digits(&self) -> [Option<u8>; N];
+    fn to_digits(&self) -> Digits<N>;
 }
 
 pub struct NixieDriver<PinCS> {
@@ -51,16 +53,31 @@ where
         driver
     }
 
+    pub fn put_digits<Spi, SpiE>(&mut self, digits: &Digits<{ nixie_io::N_DIGITS }>, spi: &mut Spi)
+    where
+        SpiE: Debug,
+        Spi: Write<u8, Error = SpiE>,
+    {
+        let hvdata = nixie_io::hvdata(&digits);
+        spi.write(&hvdata).unwrap();
+        self.cs.set_high().unwrap();
+        self.cs.set_low().unwrap();
+    }
+
+    pub fn clear<Spi, SpiE>(&mut self, spi: &mut Spi)
+    where
+        SpiE: Debug,
+        Spi: Write<u8, Error = SpiE>,
+    {
+        self.put_digits(&[None; nixie_io::N_DIGITS], spi);
+    }
+
     pub fn put<Info, Spi, SpiE>(&mut self, info: &Info, spi: &mut Spi)
     where
         Info: NixiePresentation<{ nixie_io::N_DIGITS }>,
         SpiE: Debug,
         Spi: Write<u8, Error = SpiE>,
     {
-        let digits = info.to_digits();
-        let hvdata = nixie_io::hvdata(&digits);
-        spi.write(&hvdata).unwrap();
-        self.cs.set_high().unwrap();
-        self.cs.set_low().unwrap();
+        self.put_digits(&info.to_digits(), spi);
     }
 }

@@ -12,7 +12,7 @@ pub struct DS3234<PinCS> {
 #[allow(dead_code)]
 #[repr(u8)]
 #[derive(Copy, Clone)]
-enum Registers {
+pub enum Registers {
     Seconds = 0x00,
     Minutes = 0x01,
     Hours = 0x02,
@@ -42,7 +42,7 @@ impl Registers {
         *self as u8
     }
     pub fn write(&self) -> u8 {
-        Self::SPI_WRITE_BIT & self.read()
+        Self::SPI_WRITE_BIT | self.read()
     }
 }
 
@@ -79,6 +79,10 @@ fn bcd_to_decimal(bcd: u8) -> u8 {
     (bcd >> 4) * 10 + (bcd & 0xF)
 }
 
+pub fn decimal_to_bcd(decimal: u8) -> u8 {
+    ((decimal / 10) << 4) + (decimal % 10)
+}
+
 impl<PinCS, PinE> DS3234<PinCS>
 where
     PinE: Debug,
@@ -102,13 +106,24 @@ where
         tmp[1]
     }
 
-    fn write_register<Spi, SpiE>(&mut self, spi: &mut Spi, reg: Registers, bits: u8)
+    pub fn write_register<Spi, SpiE>(&mut self, spi: &mut Spi, reg: Registers, bits: u8)
     where
         SpiE: Debug,
         Spi: Write<u8, Error = SpiE>,
     {
         self.cs.set_low().unwrap();
         spi.write(&[reg.write(), bits]).unwrap();
+        self.cs.set_high().unwrap();
+    }
+
+    fn write_data<Spi, SpiE>(&mut self, spi: &mut Spi, reg: Registers, data: &mut [u8])
+    where
+        SpiE: Debug,
+        Spi: Transfer<u8, Error = SpiE> + Write<u8, Error = SpiE>,
+    {
+        self.cs.set_low().unwrap();
+        spi.write(&[reg.write()]).unwrap();
+        spi.transfer(data).unwrap();
         self.cs.set_high().unwrap();
     }
 
@@ -136,6 +151,21 @@ where
             minutes: bcd_to_decimal(time_data[1]),
             hours: bcd_to_decimal(RegisterBits::MASK_HOURS & time_data[2]),
         };
+    }
+
+    pub fn write_time<Spi, SpiE>(&mut self, time: &Time, spi: &mut Spi)
+    where
+        SpiE: Debug,
+        Spi: Transfer<u8, Error = SpiE> + Write<u8, Error = SpiE>,
+    {
+        let mut time_data = [
+            decimal_to_bcd(time.seconds),
+            decimal_to_bcd(time.minutes),
+            RegisterBits::MASK_HOURS & decimal_to_bcd(time.hours),
+        ];
+        self.cs.set_low().unwrap();
+        self.write_data(spi, Registers::Seconds, &mut time_data);
+        self.cs.set_high().unwrap();
     }
 
     pub fn read_temperature<Spi, SpiE>(&mut self, spi: &mut Spi) -> Temperature

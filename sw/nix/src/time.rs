@@ -9,10 +9,10 @@ pub struct Time {
 impl NixiePresentation<4> for Time {
     fn to_digits(&self) -> [Option<u8>; 4] {
         [
-            Some(self.seconds % 10),
-            Some(self.seconds / 10),
             Some(self.minutes % 10),
             Some(self.minutes / 10),
+            Some(self.hours % 10),
+            Some(self.hours / 10),
         ]
     }
 }
