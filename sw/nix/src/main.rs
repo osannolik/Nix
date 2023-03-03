@@ -4,9 +4,17 @@
 //extern crate panic_halt;
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
 
+use core::cell::RefCell;
+use core::ops::DerefMut;
+
+use cortex_m::interrupt::Mutex;
+use cortex_m::peripheral::NVIC;
 use cortex_m_rt::entry;
 use stm32l0xx_hal::gpio::Speed;
-use stm32l0xx_hal::{pac, prelude::*, rcc::Config, spi};
+use stm32l0xx_hal::{
+    exti::{Exti, ExtiLine, GpioLine, TriggerEdge},
+    syscfg::SYSCFG,
+    pac::{self, interrupt, Interrupt}, prelude::*, rcc::Config, spi};
 
 mod buttons;
 mod ds3234;
@@ -112,6 +120,19 @@ impl Counter {
     }
 }
 
+
+
+
+struct SomeSpiObject { pub x: u8 }
+
+impl SomeSpiObject {
+    pub fn increment(&mut self) {
+        self.x += 1;
+    }
+}
+
+static SW_SPI_DATA: Mutex<RefCell<SomeSpiObject>> = Mutex::new(RefCell::new(SomeSpiObject{ x: 0 }));
+
 #[entry]
 fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
@@ -125,6 +146,7 @@ fn main() -> ! {
     // Acquire the GPIOA peripheral. This also enables the clock for GPIOA in
     // the RCC register.
     let gpioa = dp.GPIOA.split(&mut rcc);
+    let gpiob = dp.GPIOB.split(&mut rcc);
     let gpioc = dp.GPIOC.split(&mut rcc);
 
     // Configure PA1 as output.
@@ -156,6 +178,16 @@ fn main() -> ! {
     let mut inc_button = ButtonState::new(&inc_pin);
     let mut dec_button = ButtonState::new(&dec_pin);
 
+    let ext0 = gpioa.pa1.into_pull_up_input();      // CS
+    let ext1 = gpioa.pa0.into_pull_up_input();      // SCK
+    let ext2 = gpiob.pb1.into_pull_up_input();      // Bridge-MOSI
+
+    let mut syscfg = SYSCFG::new(dp.SYSCFG, &mut rcc);
+    let mut exti = Exti::new(dp.EXTI);
+    let line = GpioLine::from_raw_line(ext1.pin_number()).unwrap();
+    exti.listen_gpio(&mut syscfg, ext1.port(), line, TriggerEdge::Rising);
+
+
     //let mut btn = ButtonState2::new();
     let mut mode = Mode::new();
 
@@ -175,6 +207,10 @@ fn main() -> ! {
     rtc.write_time(&init_time, &mut spi);
 
     delay.delay_ms(1000 as u16);
+
+    unsafe {
+        NVIC::unmask(Interrupt::EXTI0_1);
+    }
 
     loop {
         led.set_high().unwrap();
@@ -269,6 +305,24 @@ fn main() -> ! {
             }
         }
     }
+}
+
+#[interrupt]
+fn EXTI0_1() {
+    static mut SOME_STUFF: u8 = 0;
+
+    cortex_m::interrupt::free(|cs| {
+        Exti::unpend(GpioLine::from_raw_line(0).unwrap());
+
+        let mut data = SW_SPI_DATA.borrow(cs).borrow_mut();
+        let d2 = data.deref_mut();
+        d2.increment();
+
+//        let miso_value = self.miso.is_high().unwrap();
+//        read_byte = (read_byte << 1) | u8::from(miso_value);
+
+        *SOME_STUFF = *SOME_STUFF + 1;
+    });
 }
 
 // pick a panicking behavior
