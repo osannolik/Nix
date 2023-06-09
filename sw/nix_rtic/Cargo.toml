@@ -1,0 +1,38 @@
+[package]
+name = "nix_rtic"
+categories = ["embedded", "no-std"]
+authors = ["osannolik"]
+description = "Nixie clock control board"
+keywords = ["arm", "cortex-m"]
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-m-rtic = "1.0.0"
+systick-monotonic = "1.0.1"
+#panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
+#rtt-target = { version = "0.3.1", features = ["cortex-m"] }
+panic-halt = "0.2.0"
+
+embedded-hal = { version = "0.2.3", features = ["unproven"] }
+stm32l0xx-hal = { git = "https://github.com/stm32-rs/stm32l0xx-hal", rev = "0930a372a8f76237ca939d3977f2c67cd43ca86f", features = ["rt", "mcu-STM32L011F4Px"]}
+
+num-traits = { version = "0.2.15", default-features = false }
+bitvec = { version = "1.0.1", default-features = false }
+
+# this lets you use `cargo fix`!
+[[bin]]
+name = "nix_rtic"
+test = false
+bench = false
+
+[profile.dev]
+opt-level = "z"
+debug = true # symbols are nice and they don't increase the size on Flash
+
+[profile.release]
+opt-level = "z"
+codegen-units = 1 # better optimizations
+debug = true # symbols are nice and they don't increase the size on Flash
+lto = true # better optimizations
