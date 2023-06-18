@@ -65,16 +65,24 @@ impl Sub for Bcd {
 }
 
 impl Bcd {
+    fn ranged(x: u8) -> Option<u8> {
+        if x < 10 {
+            Some(x)
+        } else {
+            None
+        }
+    }
+
     pub fn new(value: u8) -> Self {
         Bcd(value)
     }
 
-    pub fn tens(&self) -> u8 {
-        (self.0 & 0xf0) >> 4
+    pub fn tens(&self) -> Option<u8> {
+        Self::ranged((self.0 & 0xf0) >> 4)
     }
 
-    pub fn ones(&self) -> u8 {
-        self.0 & 0x0f
+    pub fn ones(&self) -> Option<u8> {
+        Self::ranged(self.0 & 0x0f)
     }
 }
 
