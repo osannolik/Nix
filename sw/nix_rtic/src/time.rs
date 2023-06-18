@@ -73,10 +73,10 @@ impl<T: Borrow<Time<Bcd>>> From<T> for Time<Decimal> {
 impl NixiePresentation<4> for Time<Bcd> {
     fn to_digits(&self) -> [Option<u8>; 4] {
         [
-            Some(self.minutes.encoding().ones()),
-            Some(self.minutes.encoding().tens()),
-            Some(self.hours.encoding().ones()),
-            Some(self.hours.encoding().tens()),
+            self.minutes.encoding().ones(),
+            self.minutes.encoding().tens(),
+            self.hours.encoding().ones(),
+            self.hours.encoding().tens(),
         ]
     }
 }
