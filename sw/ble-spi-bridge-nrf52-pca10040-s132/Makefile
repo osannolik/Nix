@@ -72,6 +72,7 @@ SRC_FILES += \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_spi.c \
   $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_spim.c \
   $(PROJ_DIR)/src/main.c \
+  $(PROJ_DIR)/src/soft_spi.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \

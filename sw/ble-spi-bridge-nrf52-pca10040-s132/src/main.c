@@ -8,30 +8,17 @@
 #include "ble.h"
 #include "ble_advertising.h"
 #include "nrf_ble_scan.h"
-
 #include "nrf_delay.h"
-#include "nrf_drv_spi.h"
+#include "app_timer.h"
+
+#include "soft_spi.h"
 
 #define SPI_SCK_PIN  12
 #define SPI_MISO_PIN 14
 #define SPI_MOSI_PIN 13
 #define SPI_SS_PIN   29
 
-#define SPI_INSTANCE  0
-static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE);
-
-#define SPI_BUFFER_SIZE 32
-static uint8_t spi_buffer_tx[SPI_BUFFER_SIZE];
-static uint8_t spi_buffer_rx[SPI_BUFFER_SIZE];
-
 #define EXPECTED_NAME "sat"
-#define MDATA_OFFSET (2)
-#define MDATA_LENGTH (2 + 2)
-#define CMD_ID_LENGTH (1)
-
-enum spi_cmd_id_t {
-  CMD_ID_VOLTAGE_TEMPERATURE_MEASUREMENT = 0x02,
-};
 
 #define CENTRAL_SCANNING_LED            BSP_BOARD_LED_0
 #define CENTRAL_CONNECTED_LED           BSP_BOARD_LED_1
@@ -39,6 +26,10 @@ enum spi_cmd_id_t {
 
 #define APP_BLE_CONN_CFG_TAG            1
 #define APP_BLE_OBSERVER_PRIO           3
+
+static spi_buffer_t soft_spi;
+
+APP_TIMER_DEF(update_timer);
 
 NRF_BLE_SCAN_DEF(s_scan);
 
@@ -95,13 +86,8 @@ static void scan_evt_handler(scan_evt_t const * p_scan_evt) {
                                            match.p_adv_report->data.len,
                                            BLE_GAP_AD_TYPE_MANUFACTURER_SPECIFIC_DATA);
         if (mdata) {
-          spi_buffer_tx[0] = CMD_ID_VOLTAGE_TEMPERATURE_MEASUREMENT;
-          memcpy(&spi_buffer_tx[1], &mdata[MDATA_OFFSET], MDATA_LENGTH);
-          const size_t send_length = CMD_ID_LENGTH + MDATA_LENGTH;
-
+          soft_spi_put_data(&soft_spi, &mdata[MDATA_OFFSET]);
           bsp_board_led_invert(CENTRAL_SCANNING_LED);
-
-          APP_ERROR_CHECK(nrf_drv_spi_transfer(&spi, spi_buffer_tx, send_length, spi_buffer_rx, send_length));
         }
       }
       break;
@@ -139,30 +125,28 @@ static void idle_state_handle(void) {
   nrf_pwr_mgmt_run();
 }
 
-void spi_event_handler(nrf_drv_spi_evt_t const * p_event, void *p_context) { }
-
-static void spi_init(void) {
-  nrf_drv_spi_config_t config = NRF_DRV_SPI_DEFAULT_CONFIG;
-  config.ss_pin   = SPI_SS_PIN;
-  config.miso_pin = SPI_MISO_PIN;
-  config.mosi_pin = SPI_MOSI_PIN;
-  config.sck_pin  = SPI_SCK_PIN;
-  config.frequency = NRF_DRV_SPI_FREQ_125K;
-
-  const ret_code_t err_code = nrf_drv_spi_init(&spi, &config, spi_event_handler, NULL);
-  APP_ERROR_CHECK(err_code);
+void update(void * p_context) {
+  (void) p_context;
+  (void) soft_spi_write_buffer(&soft_spi);
 }
 
 int main(void) {
   leds_init();
   power_management_init();
-  spi_init();
+
+  app_timer_init();
+  app_timer_create(&update_timer, APP_TIMER_MODE_REPEATED, update);
+
+  soft_spi_init(&soft_spi, SPI_SS_PIN, SPI_MOSI_PIN, SPI_SCK_PIN);
   ble_stack_init();
   scan_init(EXPECTED_NAME);
   scan_start();
 
   //bsp_board_led_on(CENTRAL_SCANNING_LED);
   //bsp_board_led_on(CENTRAL_CONNECTED_LED);
+
+  int8_t err_code = app_timer_start(update_timer, APP_TIMER_TICKS(100), NULL);
+  APP_ERROR_CHECK(err_code);
 
   while(true) {
     idle_state_handle();
