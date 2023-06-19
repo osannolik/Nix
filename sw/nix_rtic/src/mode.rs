@@ -6,12 +6,18 @@ pub enum DigitPair {
     Hours,
 }
 
+#[derive(Clone, Copy)]
+pub enum Source {
+    Internal,
+    External,
+}
+
 type Counter = usize;
 
 #[derive(Clone, Copy)]
 pub enum Mode {
     DisplayTime,
-    DisplayTemp,
+    DisplayTemp(Source),
     SetTime(DigitPair, Counter, SetTimeMask),
 }
 
@@ -62,20 +68,25 @@ impl Mode {
 
     pub fn next(&mut self, buttons: &ButtonStates) -> Self {
         let set = buttons.set;
+        let up_or_down = buttons.down.is_pressed(0) || buttons.up.is_pressed(0);
         match self {
             Mode::DisplayTime => match set.level {
-                PinLevel::Falling if set.count < 5 => Mode::DisplayTemp,
+                PinLevel::Falling if set.count < 5 => Mode::DisplayTemp(Source::Internal),
                 PinLevel::High if set.count > 10 => {
                     Mode::SetTime(DigitPair::Minutes, 0, SetTimeMask::new(4))
                 }
                 _ => *self,
             },
-            Mode::DisplayTemp => match set.level {
-                PinLevel::Falling if set.count < 5 => Mode::DisplayTime,
-                _ => *self,
+            Mode::DisplayTemp(source) => match source {
+                Source::Internal if up_or_down => Mode::DisplayTemp(Source::External),
+                Source::External if up_or_down => Mode::DisplayTemp(Source::Internal),
+                _ => match set.level {
+                    PinLevel::Falling if set.count < 5 => Mode::DisplayTime,
+                    _ => *self,
+                },
             },
             Mode::SetTime(digit_pair, timeout, blanking) => {
-                if buttons.down.is_pressed(0) || buttons.up.is_pressed(0) {
+                if up_or_down {
                     *timeout = 0;
                     blanking.reset();
                 } else {
