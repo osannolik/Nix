@@ -1,17 +1,23 @@
 use crate::buttons::Buttons;
 use crate::ds3234::DS3234;
-use crate::mode::{DigitPair, Mode};
+use crate::mode::{DigitPair, Mode, Source};
 use crate::nixiedigits::NixieDriver;
 
+use stm32l0xx_hal::exti::{Exti, ExtiLine, GpioLine, TriggerEdge};
 use stm32l0xx_hal::prelude::*;
 use stm32l0xx_hal::{pac, spi};
 
-use stm32l0xx_hal::gpio::gpioa::{PA10, PA2, PA3, PA4, PA5, PA6, PA7, PA9};
+use crate::bcd::Bcd;
+use crate::ext::Buffer;
+use crate::time::Time;
+use stm32l0xx_hal::gpio::gpioa::{PA0, PA1, PA10, PA2, PA3, PA4, PA5, PA6, PA7, PA9};
+use stm32l0xx_hal::gpio::gpiob::PB1;
 use stm32l0xx_hal::gpio::gpioc::PC14;
 use stm32l0xx_hal::gpio::{Analog, Input, OpenDrain, Output, PullUp, PushPull, Speed};
 use stm32l0xx_hal::pac::SPI1;
 use stm32l0xx_hal::rcc::Config;
 use stm32l0xx_hal::spi::Spi;
+use stm32l0xx_hal::syscfg::SYSCFG;
 
 type LedPin = PC14<Output<PushPull>>;
 type MosiPin = PA7<Output<OpenDrain>>;
@@ -25,76 +31,138 @@ type DownPin = PA3<Input<PullUp>>;
 
 type SpiBus = Spi<SPI1, (ClkPin, MisoPin, MosiPin)>;
 
-pub struct NixieClock {
+pub struct ExtPins {
+    pub ext0_cs: PA1<Input<PullUp>>,   // CS
+    pub ext1_clk: PA0<Input<PullUp>>,  // CLK
+    pub ext2_data: PB1<Input<PullUp>>, // MOSI
+    pub board_led: LedPin,
+}
+
+pub struct NixiePeripherals {
     spi: SpiBus,
     rtc: DS3234<RtcCsPin>,
     driver: NixieDriver<HvDriverCsPin>,
     buttons: Buttons<SetPin, UpPin, DownPin>,
+}
+
+pub struct NixieClock {
+    peripherals: NixiePeripherals,
     mode: Mode,
-    board_led: LedPin,
+    ext_time: Option<Buffer>,
+}
+
+pub fn setup_peripherals(dp: pac::Peripherals) -> (NixiePeripherals, ExtPins) {
+    let mut rcc = dp.RCC.freeze(Config::hsi16());
+
+    let gpioa = dp.GPIOA.split(&mut rcc);
+    let gpiob = dp.GPIOB.split(&mut rcc);
+    let gpioc = dp.GPIOC.split(&mut rcc);
+
+    let mut board_led = gpioc.pc14.into_push_pull_output();
+
+    let mut rtc_cs = gpioa.pa10.into_open_drain_output();
+
+    let mut hv_cs = gpioa.pa9.into_open_drain_output();
+
+    let set_pin = gpioa.pa2.into_pull_up_input();
+    let dec_pin = gpioa.pa3.into_pull_up_input();
+    let inc_pin = gpioa.pa4.into_pull_up_input();
+
+    let sck = gpioa
+        .pa5
+        .into_open_drain_output()
+        .set_speed(Speed::VeryHigh); // See errata sheet ES0332 for STM32L011x4
+    let miso = gpioa.pa6; //.into_floating_input();
+    let mosi = gpioa.pa7.into_open_drain_output();
+
+    let spi = dp
+        .SPI1
+        .spi((sck, miso, mosi), spi::MODE_1, 200_000.Hz(), &mut rcc);
+
+    hv_cs.set_low().unwrap();
+    rtc_cs.set_high().unwrap();
+    board_led.set_high().unwrap();
+
+    let nixie_peripherals = NixiePeripherals {
+        spi,
+        rtc: DS3234::new(rtc_cs),
+        driver: NixieDriver::new(hv_cs),
+        buttons: Buttons::new(set_pin, inc_pin, dec_pin),
+    };
+
+    let ext_pins = ExtPins {
+        ext0_cs: gpioa.pa1.into_pull_up_input(),
+        ext1_clk: gpioa.pa0.into_pull_up_input(),
+        ext2_data: gpiob.pb1.into_pull_up_input(),
+        board_led,
+    };
+
+    let mut syscfg = SYSCFG::new(dp.SYSCFG, &mut rcc);
+    let mut exti = Exti::new(dp.EXTI);
+
+    let line = GpioLine::from_raw_line(ext_pins.ext1_clk.pin_number()).unwrap();
+    exti.listen_gpio(
+        &mut syscfg,
+        ext_pins.ext1_clk.port(),
+        line,
+        TriggerEdge::Rising,
+    );
+
+    let line = GpioLine::from_raw_line(ext_pins.ext0_cs.pin_number()).unwrap();
+    exti.listen_gpio(
+        &mut syscfg,
+        ext_pins.ext0_cs.port(),
+        line,
+        TriggerEdge::Both,
+    );
+
+    (nixie_peripherals, ext_pins)
 }
 
 impl NixieClock {
-    pub fn new(dp: pac::Peripherals) -> NixieClock {
-        let mut rcc = dp.RCC.freeze(Config::hsi16());
+    pub fn new(peripherals: NixiePeripherals) -> NixieClock {
+        let mut peripherals = peripherals;
 
-        let gpioa = dp.GPIOA.split(&mut rcc);
-        let gpioc = dp.GPIOC.split(&mut rcc);
-
-        let set_pin = gpioa.pa2.into_pull_up_input();
-        let dec_pin = gpioa.pa3.into_pull_up_input();
-        let inc_pin = gpioa.pa4.into_pull_up_input();
-
-        let mut board_led = gpioc.pc14.into_push_pull_output();
-        board_led.set_high().unwrap();
-
-        let mut hv_cs = gpioa.pa9.into_open_drain_output();
-        hv_cs.set_low().unwrap();
-
-        let mut rtc_cs = gpioa.pa10.into_open_drain_output();
-        rtc_cs.set_high().unwrap();
-
-        let sck = gpioa
-            .pa5
-            .into_open_drain_output()
-            .set_speed(Speed::VeryHigh); // See errata sheet ES0332 for STM32L011x4
-        let miso = gpioa.pa6; //.into_floating_input();
-        let mosi = gpioa.pa7.into_open_drain_output();
-
-        let mut spi = dp
-            .SPI1
-            .spi((sck, miso, mosi), spi::MODE_1, 200_000.Hz(), &mut rcc);
-
-        let mut driver = NixieDriver::new(hv_cs);
-
-        driver.clear(&mut spi);
+        peripherals.driver.clear(&mut peripherals.spi);
 
         NixieClock {
-            spi,
-            rtc: DS3234::new(rtc_cs),
-            driver,
-            buttons: Buttons::new(set_pin, inc_pin, dec_pin),
+            peripherals,
             mode: Mode::new(),
-            board_led,
+            ext_time: None,
         }
     }
 
     fn display_current_time(&mut self) {
-        let time = self.rtc.read_time(&mut self.spi);
-        self.driver.put(&time, &mut self.spi);
+        let time = self.peripherals.rtc.read_time(&mut self.peripherals.spi);
+        self.peripherals
+            .driver
+            .put(&time, &mut self.peripherals.spi);
     }
 
     fn display_current_temperature(&mut self) {
-        let temperature = self.rtc.read_temperature(&mut self.spi);
-        self.driver.put(&temperature, &mut self.spi);
+        let temperature = self
+            .peripherals
+            .rtc
+            .read_temperature(&mut self.peripherals.spi);
+        self.peripherals
+            .driver
+            .put(&temperature, &mut self.peripherals.spi);
     }
 
-    pub fn update(&mut self) {
+    fn put_ext_time(&mut self, data: &Buffer) {
+        let t = Time::new(Bcd::new(0), Bcd::new(data[4]), Bcd::new(data[3]));
+
+        self.peripherals.driver.put(&t, &mut self.peripherals.spi);
+    }
+
+    pub fn update(&mut self, ext_data: &Option<Buffer>) {
         use crate::bcd::Wrapping;
 
-        self.board_led.set_high().unwrap();
+        if ext_data.is_some() {
+            self.ext_time = *ext_data;
+        }
 
-        let buttons = self.buttons.poll_state();
+        let buttons = self.peripherals.buttons.poll_state();
 
         self.mode = self.mode.next(&buttons);
 
@@ -102,11 +170,20 @@ impl NixieClock {
             Mode::DisplayTime => {
                 self.display_current_time();
             }
-            Mode::DisplayTemp => {
-                self.display_current_temperature();
-            }
+            Mode::DisplayTemp(source) => match source {
+                Source::Internal => {
+                    self.display_current_temperature();
+                }
+                Source::External => {
+                    if let Some(data) = self.ext_time {
+                        self.put_ext_time(&data);
+                    } else {
+                        self.peripherals.driver.clear(&mut self.peripherals.spi);
+                    }
+                }
+            },
             Mode::SetTime(digit_pair, _, blanking) => {
-                let mut time = self.rtc.read_time(&mut self.spi);
+                let mut time = self.peripherals.rtc.read_time(&mut self.peripherals.spi);
 
                 if buttons.up.is_pressed(0) {
                     match digit_pair {
@@ -130,14 +207,18 @@ impl NixieClock {
                     time.seconds.set(0);
                 }
 
-                self.rtc.write_time(&time, &mut self.spi);
+                self.peripherals
+                    .rtc
+                    .write_time(&time, &mut self.peripherals.spi);
 
                 let mask = blanking.mask(&digit_pair);
 
-                self.driver.put_masked(&time, &mask, &mut self.spi);
+                self.peripherals
+                    .driver
+                    .put_masked(&time, &mask, &mut self.peripherals.spi);
             }
         }
 
-        self.board_led.set_low().unwrap();
+        //self.peripherals.board_led.set_low().unwrap();
     }
 }
