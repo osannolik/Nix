@@ -2,6 +2,7 @@
 #![no_std]
 
 mod bcd;
+mod board;
 mod buttons;
 mod ds3234;
 mod ext;
@@ -28,8 +29,9 @@ use systick_monotonic::{fugit::Duration, Systick};
 )]
 mod app {
     use super::*;
+    use crate::board::{setup_peripherals, ExtPins};
     use crate::ext::{Buffer, ParseSpi};
-    use crate::nixieclock::{setup_peripherals, ExtPins, NixieClock};
+    use crate::nixieclock::NixieClock;
     use stm32l0xx_hal::exti::{Exti, ExtiLine, GpioLine};
     use stm32l0xx_hal::prelude::{InputPin, OutputPin};
     use systick_monotonic::fugit::ExtU32;
