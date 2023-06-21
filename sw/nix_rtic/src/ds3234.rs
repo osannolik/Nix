@@ -86,6 +86,7 @@ where
         rtc
     }
 
+    #[allow(dead_code)]
     fn read_register<Spi, SpiE>(&mut self, spi: &mut Spi, reg: Registers) -> u8
     where
         SpiE: Debug,
