@@ -100,18 +100,18 @@ mod app {
         let exti_interrupt::LocalResources { ext_pins, parser } = ctx.local;
         ext_pins.board_led.set_high().unwrap();
 
-        let data_is_high = ext_pins.ext2_data.is_high().unwrap();
+        let data_is_high = ext_pins.mosi.is_high().unwrap();
 
-        let clk_line = GpioLine::from_raw_line(ext_pins.ext1_clk.pin_number()).unwrap();
+        let clk_line = GpioLine::from_raw_line(ext_pins.clk.pin_number()).unwrap();
         if Exti::is_pending(clk_line) {
             parser.on_clk_rising_edge(data_is_high);
 
             Exti::unpend(clk_line);
         }
 
-        let cs_line = GpioLine::from_raw_line(ext_pins.ext0_cs.pin_number()).unwrap();
+        let cs_line = GpioLine::from_raw_line(ext_pins.cs.pin_number()).unwrap();
         if Exti::is_pending(cs_line) {
-            let is_high = ext_pins.ext0_cs.is_high().unwrap();
+            let is_high = ext_pins.cs.is_high().unwrap();
 
             if let Some(x) = parser.on_cs_edges(is_high) {
                 ctx.shared.result.lock(|r| {

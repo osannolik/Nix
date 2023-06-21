@@ -28,13 +28,16 @@ type HvDriverCsPin = PA9<Output<OpenDrain>>;
 type SetPin = PA2<Input<PullUp>>;
 type UpPin = PA4<Input<PullUp>>;
 type DownPin = PA3<Input<PullUp>>;
+type Ext0Pin = PA1<Input<PullUp>>;
+type Ext1Pin = PA0<Input<PullUp>>;
+type Ext2Pin = PB1<Input<PullUp>>;
 
 type SpiBus = Spi<SPI1, (ClkPin, MisoPin, MosiPin)>;
 
 pub struct ExtPins {
-    pub ext0_cs: PA1<Input<PullUp>>,   // CS
-    pub ext1_clk: PA0<Input<PullUp>>,  // CLK
-    pub ext2_data: PB1<Input<PullUp>>, // MOSI
+    pub cs: Ext0Pin,
+    pub clk: Ext1Pin,
+    pub mosi: Ext2Pin,
     pub board_led: LedPin,
 }
 
@@ -91,27 +94,27 @@ pub fn setup_peripherals(dp: pac::Peripherals) -> (NixiePeripherals, ExtPins) {
     };
 
     let ext_pins = ExtPins {
-        ext0_cs: gpioa.pa1.into_pull_up_input(),
-        ext1_clk: gpioa.pa0.into_pull_up_input(),
-        ext2_data: gpiob.pb1.into_pull_up_input(),
+        cs: gpioa.pa1.into_pull_up_input(),
+        clk: gpioa.pa0.into_pull_up_input(),
+        mosi: gpiob.pb1.into_pull_up_input(),
         board_led,
     };
 
     let mut syscfg = SYSCFG::new(dp.SYSCFG, &mut rcc);
     let mut exti = Exti::new(dp.EXTI);
 
-    let line = GpioLine::from_raw_line(ext_pins.ext1_clk.pin_number()).unwrap();
+    let line = GpioLine::from_raw_line(ext_pins.clk.pin_number()).unwrap();
     exti.listen_gpio(
         &mut syscfg,
-        ext_pins.ext1_clk.port(),
+        ext_pins.clk.port(),
         line,
         TriggerEdge::Rising,
     );
 
-    let line = GpioLine::from_raw_line(ext_pins.ext0_cs.pin_number()).unwrap();
+    let line = GpioLine::from_raw_line(ext_pins.cs.pin_number()).unwrap();
     exti.listen_gpio(
         &mut syscfg,
-        ext_pins.ext0_cs.port(),
+        ext_pins.cs.port(),
         line,
         TriggerEdge::Both,
     );
