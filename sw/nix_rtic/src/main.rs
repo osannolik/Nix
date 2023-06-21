@@ -30,7 +30,7 @@ use systick_monotonic::{fugit::Duration, Systick};
 mod app {
     use super::*;
     use crate::board::setup_peripherals;
-    use crate::ext::{Buffer, ExternalTemperature};
+    use crate::ext::{External, ExternalData};
     use crate::nixieclock::NixieClock;
     use systick_monotonic::fugit::ExtU32;
 
@@ -42,12 +42,12 @@ mod app {
     #[local]
     struct Local {
         nixie: NixieClock,
-        external_temperature: ExternalTemperature,
+        external: External,
     }
 
     #[shared]
     struct Shared {
-        result: Option<Buffer>,
+        external_data: Option<ExternalData>,
     }
 
     #[init]
@@ -60,44 +60,42 @@ mod app {
         let (nixie_peripherals, ext_pins) = setup_peripherals(dp);
 
         let nixie = NixieClock::new(nixie_peripherals);
-        let external_temperature = ExternalTemperature::new(ext_pins);
+        let external = External::new(ext_pins);
 
         let mono = Systick::new(cx.core.SYST, 16_000_000);
 
         let _ = main::spawn_after(TonicTime::from_ticks(500));
 
         (
-            Shared { result: None },
-            Local {
-                nixie,
-                external_temperature,
+            Shared {
+                external_data: None,
             },
+            Local { nixie, external },
             init::Monotonics(mono),
         )
     }
 
-    #[task(priority = 1, local = [nixie], shared = [result])]
+    #[task(priority = 1, local = [nixie], shared = [external_data])]
     fn main(mut ctx: main::Context) {
         let next_time = monotonics::now() + 100.millis();
 
-        let mut ext_data: Option<Buffer> = None;
-        ctx.shared.result.lock(|r| {
-            ext_data = *r;
-            *r = None;
+        let mut external_data: Option<ExternalData> = None;
+        ctx.shared.external_data.lock(|r| {
+            external_data = *r;
         });
 
-        ctx.local.nixie.update(&ext_data);
+        ctx.local.nixie.update(&external_data);
 
         let _ = main::spawn_at(next_time);
     }
 
-    #[task(priority = 2, binds = EXTI0_1, local = [external_temperature], shared = [result])]
+    #[task(priority = 2, binds = EXTI0_1, local = [external], shared = [external_data])]
     fn exti_interrupt(mut ctx: exti_interrupt::Context) {
         //let exti_interrupt::LocalResources { external_temperature } = ctx.local;
 
-        if let Some(time) = ctx.local.external_temperature.on_interrupt() {
-            ctx.shared.result.lock(|r| {
-                *r = Some(time);
+        if let Some(data) = ctx.local.external.on_interrupt() {
+            ctx.shared.external_data.lock(|r| {
+                *r = Some(data);
             });
         }
     }

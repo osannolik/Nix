@@ -1,10 +1,42 @@
+use crate::bcd::{Bcd, BcdDigits};
 use crate::board::{ExtPins, ExtiSource};
+use crate::nixiedigits::NixiePresentation;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
 const CMD_ID_VOLTAGE_TEMPERATURE_MEASUREMENT: u8 = 0x02;
 const BUFFER_LENGTH: usize = 5;
 
-pub type Buffer = [u8; BUFFER_LENGTH];
+type Buffer = [u8; BUFFER_LENGTH];
+
+#[derive(Copy, Clone)]
+pub struct ExternalDigits(BcdDigits<2>);
+
+impl NixiePresentation<4> for ExternalDigits {
+    fn to_digits(&self) -> [Option<u8>; 4] {
+        let pair = self.0;
+        [
+            pair[0].ones(),
+            pair[0].tens(),
+            pair[1].ones(),
+            pair[1].tens(),
+        ]
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct ExternalData {
+    pub temperature: ExternalDigits,
+    pub voltage: ExternalDigits,
+}
+
+impl From<Buffer> for ExternalData {
+    fn from(value: Buffer) -> Self {
+        ExternalData {
+            temperature: ExternalDigits([Bcd::new(value[4]), Bcd::new(value[3])]),
+            voltage: ExternalDigits([Bcd::new(value[2]), Bcd::new(value[1])]),
+        }
+    }
+}
 
 #[derive(Copy, Clone)]
 pub enum ParseSpi {
@@ -41,14 +73,14 @@ impl ParseSpi {
     }
 }
 
-pub struct ExternalTemperature {
+pub struct External {
     peripherals: ExtPins,
     parser: ParseSpi,
 }
 
-impl ExternalTemperature {
+impl External {
     pub fn new(peripherals: ExtPins) -> Self {
-        ExternalTemperature {
+        External {
             peripherals,
             parser: ParseSpi::Idle,
         }
@@ -73,10 +105,10 @@ impl ExternalTemperature {
         }
     }
 
-    pub fn on_interrupt(&mut self) -> Option<Buffer> {
+    pub fn on_interrupt(&mut self) -> Option<ExternalData> {
         self.peripherals.board_led.set_high().unwrap();
         let time = self.handle_interrupt();
         self.peripherals.board_led.set_low().unwrap();
-        time
+        time.map(|buffer| buffer.into())
     }
 }

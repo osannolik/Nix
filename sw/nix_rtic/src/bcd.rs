@@ -123,3 +123,5 @@ impl From<Decimal> for Bcd {
         Bcd::new(decimal_to_bcd(value.value()))
     }
 }
+
+pub type BcdDigits<const N: usize> = [Bcd; N];

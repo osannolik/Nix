@@ -1,13 +1,10 @@
-use crate::bcd::Bcd;
 use crate::board::NixiePeripherals;
-use crate::ext::Buffer;
+use crate::ext::ExternalData;
 use crate::mode::{DigitPair, Mode, Source};
-use crate::time::Time;
 
 pub struct NixieClock {
     peripherals: NixiePeripherals,
     mode: Mode,
-    ext_time: Option<Buffer>,
 }
 
 impl NixieClock {
@@ -19,7 +16,6 @@ impl NixieClock {
         NixieClock {
             peripherals,
             mode: Mode::new(),
-            ext_time: None,
         }
     }
 
@@ -40,18 +36,8 @@ impl NixieClock {
             .put(&temperature, &mut self.peripherals.spi);
     }
 
-    fn put_ext_time(&mut self, data: &Buffer) {
-        let t = Time::new(Bcd::new(0), Bcd::new(data[4]), Bcd::new(data[3]));
-
-        self.peripherals.driver.put(&t, &mut self.peripherals.spi);
-    }
-
-    pub fn update(&mut self, ext_data: &Option<Buffer>) {
+    pub fn update(&mut self, external_data: &Option<ExternalData>) {
         use crate::bcd::Wrapping;
-
-        if ext_data.is_some() {
-            self.ext_time = *ext_data;
-        }
 
         let buttons = self.peripherals.buttons.poll_state();
 
@@ -66,8 +52,10 @@ impl NixieClock {
                     self.display_current_temperature();
                 }
                 Source::External => {
-                    if let Some(data) = self.ext_time {
-                        self.put_ext_time(&data);
+                    if let Some(external) = external_data {
+                        self.peripherals
+                            .driver
+                            .put(&external.temperature, &mut self.peripherals.spi);
                     } else {
                         self.peripherals.driver.clear(&mut self.peripherals.spi);
                     }
