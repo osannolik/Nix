@@ -29,11 +29,9 @@ use systick_monotonic::{fugit::Duration, Systick};
 )]
 mod app {
     use super::*;
-    use crate::board::{setup_peripherals, ExtPins};
-    use crate::ext::{Buffer, ParseSpi};
+    use crate::board::setup_peripherals;
+    use crate::ext::{Buffer, ExternalTemperature};
     use crate::nixieclock::NixieClock;
-    use stm32l0xx_hal::exti::{Exti, ExtiLine, GpioLine};
-    use stm32l0xx_hal::prelude::{InputPin, OutputPin};
     use systick_monotonic::fugit::ExtU32;
 
     // Setting this monotonic as the default
@@ -44,8 +42,7 @@ mod app {
     #[local]
     struct Local {
         nixie: NixieClock,
-        ext_pins: ExtPins,
-        parser: ParseSpi,
+        external_temperature: ExternalTemperature,
     }
 
     #[shared]
@@ -60,13 +57,11 @@ mod app {
         //        rtt_init_print!();
         //        rprintln!("hello");
 
-        let (nixie_peripherals, mut ext_pins) = setup_peripherals(dp);
-
-        ext_pins.board_led.set_low().unwrap();
+        let (nixie_peripherals, ext_pins) = setup_peripherals(dp);
 
         let nixie = NixieClock::new(nixie_peripherals);
+        let external_temperature = ExternalTemperature::new(ext_pins);
 
-        let parser = ParseSpi::Idle;
         let mono = Systick::new(cx.core.SYST, 16_000_000);
 
         let _ = main::spawn_after(TonicTime::from_ticks(500));
@@ -75,8 +70,7 @@ mod app {
             Shared { result: None },
             Local {
                 nixie,
-                ext_pins,
-                parser,
+                external_temperature,
             },
             init::Monotonics(mono),
         )
@@ -97,33 +91,14 @@ mod app {
         let _ = main::spawn_at(next_time);
     }
 
-    #[task(priority = 2, binds = EXTI0_1, local = [ext_pins, parser], shared = [result])]
+    #[task(priority = 2, binds = EXTI0_1, local = [external_temperature], shared = [result])]
     fn exti_interrupt(mut ctx: exti_interrupt::Context) {
-        let exti_interrupt::LocalResources { ext_pins, parser } = ctx.local;
-        ext_pins.board_led.set_high().unwrap();
+        //let exti_interrupt::LocalResources { external_temperature } = ctx.local;
 
-        let data_is_high = ext_pins.mosi.is_high().unwrap();
-
-        let clk_line = GpioLine::from_raw_line(ext_pins.clk.pin_number()).unwrap();
-        if Exti::is_pending(clk_line) {
-            parser.on_clk_rising_edge(data_is_high);
-
-            Exti::unpend(clk_line);
+        if let Some(time) = ctx.local.external_temperature.on_interrupt() {
+            ctx.shared.result.lock(|r| {
+                *r = Some(time);
+            });
         }
-
-        let cs_line = GpioLine::from_raw_line(ext_pins.cs.pin_number()).unwrap();
-        if Exti::is_pending(cs_line) {
-            let is_high = ext_pins.cs.is_high().unwrap();
-
-            if let Some(x) = parser.on_cs_edges(is_high) {
-                ctx.shared.result.lock(|r| {
-                    *r = Some(x);
-                });
-            }
-
-            Exti::unpend(cs_line);
-        }
-
-        ext_pins.board_led.set_low().unwrap();
     }
 }

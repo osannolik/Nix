@@ -37,6 +37,42 @@ pub struct ExtPins {
     pub board_led: LedPin,
 }
 
+#[derive(Copy, Clone)]
+pub enum ExtiSource {
+    Clock(GpioLine),
+    Cs(GpioLine),
+}
+
+impl ExtiSource {
+    pub fn clear(self) {
+        match self {
+            ExtiSource::Clock(line) | ExtiSource::Cs(line) => Exti::unpend(line),
+        }
+    }
+}
+
+impl ExtPins {
+    fn setup_interrupts(&mut self, syscfg: &mut SYSCFG, exti: &mut Exti) {
+        let line = GpioLine::from_raw_line(self.clk.pin_number()).unwrap();
+        exti.listen_gpio(syscfg, self.clk.port(), line, TriggerEdge::Rising);
+
+        let line = GpioLine::from_raw_line(self.cs.pin_number()).unwrap();
+        exti.listen_gpio(syscfg, self.cs.port(), line, TriggerEdge::Both);
+    }
+
+    pub fn interrupt_pending(&self) -> Option<ExtiSource> {
+        let line = GpioLine::from_raw_line(self.clk.pin_number()).unwrap();
+        if Exti::is_pending(line) {
+            return Some(ExtiSource::Clock(line));
+        }
+        let line = GpioLine::from_raw_line(self.cs.pin_number()).unwrap();
+        if Exti::is_pending(line) {
+            return Some(ExtiSource::Cs(line));
+        }
+        None
+    }
+}
+
 pub struct NixiePeripherals {
     pub spi: SpiBus,
     pub rtc: DS3234<RtcCsPin>,
@@ -83,7 +119,7 @@ pub fn setup_peripherals(dp: pac::Peripherals) -> (NixiePeripherals, ExtPins) {
         buttons: Buttons::new(set_pin, inc_pin, dec_pin),
     };
 
-    let ext_pins = ExtPins {
+    let mut ext_pins = ExtPins {
         cs: gpioa.pa1.into_pull_up_input(),
         clk: gpioa.pa0.into_pull_up_input(),
         mosi: gpiob.pb1.into_pull_up_input(),
@@ -93,11 +129,7 @@ pub fn setup_peripherals(dp: pac::Peripherals) -> (NixiePeripherals, ExtPins) {
     let mut syscfg = SYSCFG::new(dp.SYSCFG, &mut rcc);
     let mut exti = Exti::new(dp.EXTI);
 
-    let line = GpioLine::from_raw_line(ext_pins.clk.pin_number()).unwrap();
-    exti.listen_gpio(&mut syscfg, ext_pins.clk.port(), line, TriggerEdge::Rising);
-
-    let line = GpioLine::from_raw_line(ext_pins.cs.pin_number()).unwrap();
-    exti.listen_gpio(&mut syscfg, ext_pins.cs.port(), line, TriggerEdge::Both);
+    ext_pins.setup_interrupts(&mut syscfg, &mut exti);
 
     (nixie_peripherals, ext_pins)
 }
